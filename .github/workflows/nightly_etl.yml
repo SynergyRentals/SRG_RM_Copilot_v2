@@ -1,0 +1,42 @@
+name: Nightly Wheelhouse ETL
+
+on:
+  schedule:
+    - cron: '5 6 * * *'  # 06:05 UTC daily
+  workflow_dispatch:
+
+jobs:
+  nightly-etl:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout repo
+        uses: actions/checkout@v4
+      - name: Set up Python
+        uses: actions/setup-python@v4
+        with:
+          python-version: '3.11'
+      - name: Install dependencies
+        run: pip install -e .
+      - name: Run ETL
+        env:
+          WHEELHOUSE_BASE_URL: ${{ secrets.WHEELHOUSE_BASE_URL }}
+          WHEELHOUSE_API_KEY: ${{ secrets.WHEELHOUSE_API_KEY }}
+        run: python -m srg_rm_copilot etl
+      - name: Summarize results and create health file
+        id: summarize
+        run: |
+          DATE=$(date -u -d 'yesterday' +%F)
+          # Count parquet files written for the target date
+          FILES=$(find data/raw -type f -name "$DATE.parquet" | wc -l || true)
+          echo "files_written=$FILES" >> "$GITHUB_OUTPUT"
+          echo "Files written: $FILES"
+          echo "First 5 files:"
+          find data/raw -type f -name "$DATE.parquet" | head -n 5 || true
+          # Write health.json artifact
+          TIMESTAMP=$(date -u +"%Y-%m-%dT%H:%M:%SZ")
+          echo "{\"date_run\": \"${TIMESTAMP}\", \"files_written\": ${FILES}, \"listings_touched\": ${FILES}}" > health.json
+      - name: Upload health artifact
+        uses: actions/upload-artifact@v3
+        with:
+          name: health
+          path: health.json
