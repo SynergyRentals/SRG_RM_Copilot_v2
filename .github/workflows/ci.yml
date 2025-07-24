@@ -1,0 +1,25 @@
+name: CI
+
+on:
+  push:
+    branches:
+      - "main"
+      - "v2"
+      - "auto/**"
+  pull_request:
+    branches:
+      - "v2"
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v4
+        with:
+          python-version: "3.11"
+      - run: python -m pip install --upgrade pip
+      - run: pip install pandas pyarrow httpx typer pytest pytest-httpx
+      - run: pytest
+        env:
+          PYTHONPATH: "src"
